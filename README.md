@@ -43,3 +43,7 @@ cmake --build build -j$(nproc)
 - `Ctrl+T` new tab · `Ctrl+W` close tab · `Ctrl+Tab` next tab
 - `Ctrl+L` focus address bar · `Ctrl+F` focus search
 - `Alt+Left / Alt+Right / Alt+Up` back / forward / up
+
+## GitHub
+
+https://github.com/AzenDev2026/ArchiveManager
