@@ -19,7 +19,6 @@ add_executable(dolphin-shell
     src/breadcrumb.cpp
     src/sidebar.cpp
     src/shellwindow.cpp
-    resources/resources.qrc
 )
 
 target_link_libraries(dolphin-shell PRIVATE
@@ -31,5 +30,4 @@ target_link_libraries(dolphin-shell PRIVATE
 )
 
 install(TARGETS dolphin-shell RUNTIME DESTINATION bin)
-install(FILES resources/dolphin-shell.svg DESTINATION share/icons/hicolor/scalable/apps)
 install(FILES data/org.azendev.DolphinShell.desktop DESTINATION share/applications)

@@ -44,6 +44,8 @@ private:
         QList<QUrl> history;
         int historyPos = -1;
         bool skipRecord = false;
+        bool enforceCompact = true;
+        bool applyingDefault = false;
     };
 
     Tab *tabAt(int index);

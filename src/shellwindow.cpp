@@ -44,7 +44,7 @@ ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
     setAttribute(Qt::WA_TranslucentBackground);
     setWindowFlag(Qt::FramelessWindowHint);
     setWindowTitle(QStringLiteral("Dolphin Shell"));
-    setWindowIcon(QIcon(QStringLiteral(":/icons/dolphin-shell.svg")));
+    setWindowIcon(Theme::icon(QStringLiteral("system-file-manager"), QStringLiteral("folder")));
     setMinimumSize(900, 560);
     resize(1240, 760);
 
@@ -76,7 +76,7 @@ ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
     titleLayout->setSpacing(6);
 
     auto *appIcon = new QLabel(m_titleBar);
-    appIcon->setPixmap(QIcon(QStringLiteral(":/icons/dolphin-shell.svg")).pixmap(20, 20));
+    appIcon->setPixmap(Theme::icon(QStringLiteral("system-file-manager"), QStringLiteral("folder")).pixmap(20, 20));
     titleLayout->addWidget(appIcon);
 
     m_tabs = new QTabBar(m_titleBar);
@@ -473,6 +473,15 @@ void ShellWindow::connectPartSignals(ShellWindow::Tab *tab)
 
     connect(part, &KParts::ReadOnlyPart::completed, this, [this, part] {
         if (Tab *tab = tabOfPart(part)) {
+            if (tab->enforceCompact) {
+                if (QAction *compact = part->actionCollection()->action(QStringLiteral("compact"))) {
+                    if (!compact->isChecked()) {
+                        tab->applyingDefault = true;
+                        compact->trigger();
+                        tab->applyingDefault = false;
+                    }
+                }
+            }
             recordUrl(tab, part->url());
             syncUrl(tab);
         }
@@ -539,6 +548,18 @@ void ShellWindow::connectPartSignals(ShellWindow::Tab *tab)
                     m_pasteAction->setText(text);
                 }
             });
+
+    // If the user picks a view mode manually, stop enforcing the default.
+    const auto markUserPicked = [this, part] {
+        if (Tab *tab = tabOfPart(part); tab && !tab->applyingDefault) {
+            tab->enforceCompact = false;
+        }
+    };
+    for (const char *viewAction : {"icons", "compact", "details"}) {
+        if (QAction *action = part->actionCollection()->action(QString::fromLatin1(viewAction))) {
+            connect(action, &QAction::triggered, this, markUserPicked);
+        }
+    }
 
     // The view asks for history navigation (mouse back/forward buttons, Alt+Up...)
     connect(part->widget(), SIGNAL(goBackRequested()), this, SLOT(goBack()));
@@ -1055,11 +1076,12 @@ void ShellWindow::dumpActionsAndQuit()
             }
             const QList<QAction *> actions = tab->part->actionCollection()->actions();
             for (const QAction *action : actions) {
-                fprintf(stderr, "%s | %s | %s%s\n",
+                fprintf(stderr, "%s | %s | %s%s%s\n",
                         qPrintable(action->objectName()),
                         qPrintable(action->text()),
                         action->menu() ? "HASMENU " : "",
-                        action->isCheckable() ? "CHECKABLE" : "");
+                        action->isCheckable() ? "CHECKABLE" : "",
+                        action->isChecked() ? " CHECKED" : "");
             }
             break;
         }
