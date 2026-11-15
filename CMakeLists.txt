@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(DolphinShell VERSION 0.1.0 LANGUAGES CXX)
+project(ArchiveManager VERSION 1.1.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -12,16 +12,15 @@ find_package(KF6Parts REQUIRED)
 find_package(KF6XmlGui REQUIRED)
 find_package(KF6KIO REQUIRED)
 
-add_executable(dolphin-shell
+add_executable(archive-manager
     src/main.cpp
     src/theme.cpp
-    src/windowcontrols.cpp
     src/breadcrumb.cpp
     src/sidebar.cpp
     src/shellwindow.cpp
 )
 
-target_link_libraries(dolphin-shell PRIVATE
+target_link_libraries(archive-manager PRIVATE
     Qt6::Widgets
     KF6::CoreAddons
     KF6::Parts
@@ -29,5 +28,5 @@ target_link_libraries(dolphin-shell PRIVATE
     KF6::KIOCore
 )
 
-install(TARGETS dolphin-shell RUNTIME DESTINATION bin)
-install(FILES data/org.azendev.DolphinShell.desktop DESTINATION share/applications)
+install(TARGETS archive-manager RUNTIME DESTINATION bin)
+install(FILES data/org.azendev.ArchiveManager.desktop DESTINATION share/applications)

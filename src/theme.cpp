@@ -77,8 +77,7 @@ QString styleSheet(Mode mode)
     const QString textDim = dark ? QStringLiteral("#b8b8b8") : QStringLiteral("#5c5c5c");
     const QString sepColor = dark ? QStringLiteral("#8a8a8a") : QStringLiteral("#6e6e6e");
 
-    return QStringLiteral(R"(QWidget#root { background-color: %1; border-radius: 12px; }
-QWidget#root[maximized="true"] { border-radius: 0px; }
+    return QStringLiteral(R"(QWidget#root { background-color: %1; }
 QWidget#titleBar, QWidget#commandBar, QWidget#statusBar, QWidget#hostPage { background: transparent; }
 QToolButton { border: none; background: transparent; color: %2; }
 QToolButton#nav { border-radius: 6px; padding: 4px; }

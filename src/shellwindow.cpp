@@ -2,7 +2,6 @@
 
 #include "breadcrumb.h"
 #include "sidebar.h"
-#include "windowcontrols.h"
 
 #include <kactioncollection.h>
 #include <kfileitem.h>
@@ -13,37 +12,31 @@
 
 #include <QApplication>
 #include <QCloseEvent>
-#include <QDebug>
+#include <cstdio>
 #include <QDesktopServices>
 #include <QDir>
-#include <QEvent>
 #include <QFileInfo>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
 #include <QMenu>
 #include <QMessageBox>
-#include <QMouseEvent>
 #include <QProcess>
 #include <QSet>
 #include <QSettings>
 #include <QShortcut>
-#include <QSizeGrip>
 #include <QSplitter>
 #include <QStackedWidget>
 #include <QStyle>
 #include <QTabBar>
 #include <QTimer>
 #include <QToolButton>
-#include <QWindow>
 #include <utility>
 
 ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
     : QMainWindow(parent)
 {
-    setAttribute(Qt::WA_TranslucentBackground);
-    setWindowFlag(Qt::FramelessWindowHint);
-    setWindowTitle(QStringLiteral("Dolphin Shell"));
+    setWindowTitle(QStringLiteral("ArchiveManager"));
     setWindowIcon(Theme::icon(QStringLiteral("system-file-manager"), QStringLiteral("folder")));
     setMinimumSize(900, 560);
     resize(1240, 760);
@@ -59,7 +52,6 @@ ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
 
     m_root = new QWidget(this);
     m_root->setObjectName(QStringLiteral("root"));
-    m_root->installEventFilter(this);
     setCentralWidget(m_root);
 
     auto *rootLayout = new QVBoxLayout(m_root);
@@ -69,15 +61,10 @@ ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
     // ---- Title bar ----
     m_titleBar = new QWidget(m_root);
     m_titleBar->setObjectName(QStringLiteral("titleBar"));
-    m_titleBar->setFixedHeight(40);
-    m_titleBar->installEventFilter(this);
+    m_titleBar->setFixedHeight(36);
     auto *titleLayout = new QHBoxLayout(m_titleBar);
     titleLayout->setContentsMargins(10, 0, 0, 0);
     titleLayout->setSpacing(6);
-
-    auto *appIcon = new QLabel(m_titleBar);
-    appIcon->setPixmap(Theme::icon(QStringLiteral("system-file-manager"), QStringLiteral("folder")).pixmap(20, 20));
-    titleLayout->addWidget(appIcon);
 
     m_tabs = new QTabBar(m_titleBar);
     m_tabs->setExpanding(false);
@@ -87,7 +74,6 @@ ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
     m_tabs->setDocumentMode(true);
     m_tabs->setUsesScrollButtons(true);
     m_tabs->setElideMode(Qt::ElideRight);
-    m_tabs->installEventFilter(this);
     titleLayout->addWidget(m_tabs, 1);
     connect(m_tabs, &QTabBar::tabCloseRequested, this, &ShellWindow::closeTab);
     connect(m_tabs, &QTabBar::currentChanged, this, &ShellWindow::switchToTab);
@@ -103,29 +89,12 @@ ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
         addTab(tab && tab->part ? tab->part->url() : QUrl());
     });
 
-    m_controls = new WindowControls(m_titleBar);
-    titleLayout->addWidget(m_controls);
-    connect(m_controls, &WindowControls::clicked, this, [this](int button) {
-        switch (button) {
-        case WindowControls::Minimize:
-            showMinimized();
-            break;
-        case WindowControls::Maximize:
-            setWindowState(isMaximized() ? Qt::WindowNoState : Qt::WindowMaximized);
-            break;
-        case WindowControls::Close:
-            close();
-            break;
-        }
-    });
-
     rootLayout->addWidget(m_titleBar);
 
     // ---- Command bar ----
     m_commandBar = new QWidget(m_root);
     m_commandBar->setObjectName(QStringLiteral("commandBar"));
     m_commandBar->setFixedHeight(44);
-    m_commandBar->installEventFilter(this);
     auto *commandLayout = new QHBoxLayout(m_commandBar);
     commandLayout->setContentsMargins(10, 6, 8, 6);
     commandLayout->setSpacing(2);
@@ -239,7 +208,6 @@ ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
     m_splitter = new QSplitter(Qt::Horizontal, m_root);
     m_splitter->setChildrenCollapsible(false);
     m_splitter->setHandleWidth(1);
-    m_splitter->installEventFilter(this);
 
     m_sidebar = new Sidebar(m_splitter);
     m_sidebar->setFixedWidth(232);
@@ -258,7 +226,6 @@ ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
     m_statusBar = new QWidget(m_root);
     m_statusBar->setObjectName(QStringLiteral("statusBar"));
     m_statusBar->setFixedHeight(26);
-    m_statusBar->installEventFilter(this);
     auto *statusLayout = new QHBoxLayout(m_statusBar);
     statusLayout->setContentsMargins(12, 0, 6, 0);
     statusLayout->setSpacing(6);
@@ -273,9 +240,6 @@ ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
     m_themeButton->setAutoRaise(true);
     statusLayout->addWidget(m_themeButton);
     connect(m_themeButton, &QToolButton::clicked, this, &ShellWindow::toggleTheme);
-
-    auto *sizeGrip = new QSizeGrip(m_statusBar);
-    statusLayout->addWidget(sizeGrip, 0, Qt::AlignBottom | Qt::AlignRight);
 
     rootLayout->addWidget(m_statusBar);
 
@@ -837,7 +801,7 @@ void ShellWindow::updateTabText(ShellWindow::Tab *tab, const QString &caption)
     m_tabs->setTabText(index, shortName);
     m_tabs->setTabToolTip(index, caption);
     if (tab == currentTab()) {
-        setWindowTitle(QStringLiteral("%1 — Dolphin Shell").arg(shortName));
+        setWindowTitle(QStringLiteral("%1 — ArchiveManager").arg(shortName));
     }
 }
 
@@ -1024,9 +988,6 @@ void ShellWindow::applyTheme(Theme::Mode mode)
     if (m_sidebar) {
         m_sidebar->refresh();
     }
-    if (m_controls) {
-        m_controls->update();
-    }
 }
 
 void ShellWindow::toggleTheme()
@@ -1047,9 +1008,9 @@ void ShellWindow::openInDolphin()
 
 void ShellWindow::showAbout()
 {
-    QMessageBox::about(this, QStringLiteral("About Dolphin Shell"),
-                       QStringLiteral("<h3>Dolphin Shell 0.1.0</h3>"
-                                      "<p>A Windows 11 Explorer style shell for Dolphin.</p>"
+    QMessageBox::about(this, QStringLiteral("About ArchiveManager"),
+                       QStringLiteral("<h3>ArchiveManager 1.1.0</h3>"
+                                      "<p>A Windows 11 Explorer style file manager built on the Dolphin engine.</p>"
                                       "<p>Made by AzenDev.</p>"));
 }
 
@@ -1087,79 +1048,6 @@ void ShellWindow::dumpActionsAndQuit()
         }
         QTimer::singleShot(100, qApp, &QCoreApplication::quit);
     });
-}
-
-bool ShellWindow::eventFilter(QObject *watched, QEvent *event)
-{
-    if (watched == m_tabs) {
-        if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick) {
-            auto *mouseEvent = static_cast<QMouseEvent *>(event);
-            if (mouseEvent->button() == Qt::LeftButton && m_tabs->tabAt(mouseEvent->pos()) < 0) {
-                if (event->type() == QEvent::MouseButtonDblClick) {
-                    setWindowState(isMaximized() ? Qt::WindowNoState : Qt::WindowMaximized);
-                    return true;
-                }
-                if (windowHandle()) {
-                    windowHandle()->startSystemMove();
-                    return true;
-                }
-            }
-        }
-    } else if (watched == m_titleBar) {
-        if (event->type() == QEvent::MouseButtonPress || event->type() == QEvent::MouseButtonDblClick) {
-            auto *mouseEvent = static_cast<QMouseEvent *>(event);
-            if (mouseEvent->button() == Qt::LeftButton) {
-                if (event->type() == QEvent::MouseButtonDblClick) {
-                    setWindowState(isMaximized() ? Qt::WindowNoState : Qt::WindowMaximized);
-                    return true;
-                }
-                if (windowHandle()) {
-                    windowHandle()->startSystemMove();
-                    return true;
-                }
-            }
-        }
-    } else if (event->type() == QEvent::MouseButtonPress && !isMaximized()) {
-        if (watched == m_root || watched == m_commandBar || watched == m_splitter || watched == m_statusBar) {
-            auto *mouseEvent = static_cast<QMouseEvent *>(event);
-            if (mouseEvent->button() == Qt::LeftButton && windowHandle()) {
-                auto *widget = qobject_cast<QWidget *>(watched);
-                if (widget) {
-                    const QPoint pos = widget->mapTo(m_root, mouseEvent->pos());
-                    const int margin = 8;
-                    Qt::Edges edges;
-                    if (pos.x() <= margin) {
-                        edges |= Qt::LeftEdge;
-                    }
-                    if (pos.x() >= m_root->width() - margin) {
-                        edges |= Qt::RightEdge;
-                    }
-                    if (pos.y() <= margin) {
-                        edges |= Qt::TopEdge;
-                    }
-                    if (pos.y() >= m_root->height() - margin) {
-                        edges |= Qt::BottomEdge;
-                    }
-                    if (edges != Qt::Edges()) {
-                        windowHandle()->startSystemResize(edges);
-                        return true;
-                    }
-                }
-            }
-        }
-    }
-    return QMainWindow::eventFilter(watched, event);
-}
-
-void ShellWindow::changeEvent(QEvent *event)
-{
-    QMainWindow::changeEvent(event);
-    if (event->type() == QEvent::WindowStateChange) {
-        m_root->setProperty("maximized", isMaximized());
-        m_root->style()->unpolish(m_root);
-        m_root->style()->polish(m_root);
-        m_controls->setMaximized(isMaximized());
-    }
 }
 
 void ShellWindow::closeEvent(QCloseEvent *event)

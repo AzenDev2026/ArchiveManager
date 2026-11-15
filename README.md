@@ -1,19 +1,8 @@
-# Dolphin Shell
+# ArchiveManager
 
-A Windows 11 Explorer style shell for Dolphin (the KDE file manager).
-The real Dolphin engine runs inside a Win11-style window with tabs,
-command bar, breadcrumb address bar, sidebar, and dark/light themes
-(dark is the default). Folders open in the vertical list view (Win11 style);
-you can still switch view modes from the View menu.
-
-The launcher uses the system file-manager icon. To install the menu entry
-and a desktop shortcut:
-
-```sh
-cp data/org.azendev.DolphinShell.desktop ~/.local/share/applications/
-cp data/org.azendev.DolphinShell.desktop ~/Desktop/
-chmod +x ~/Desktop/org.azendev.DolphinShell.desktop
-```
+A Windows 11 Explorer style file manager built on the real Dolphin engine (KDE).
+Tabs, command bar, breadcrumb address bar, navigation sidebar, search, and
+dark/light themes (dark is the default). Folders open in the vertical list view.
 
 ## Requirements (Arch / NVazen)
 
@@ -37,7 +26,7 @@ cmake --build build -j$(nproc)
 ## Run
 
 ```sh
-./build/dolphin-shell
+./build/archive-manager
 ```
 
 ## Options

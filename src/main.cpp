@@ -17,15 +17,15 @@ int main(int argc, char **argv)
     QLocale::setDefault(QLocale(QLocale::English, QLocale::UnitedStates));
 
     QApplication app(argc, argv);
-    QApplication::setApplicationName(QStringLiteral("Dolphin Shell"));
-    QApplication::setApplicationDisplayName(QStringLiteral("Dolphin Shell"));
-    QApplication::setApplicationVersion(QStringLiteral("0.1.0"));
+    QApplication::setApplicationName(QStringLiteral("ArchiveManager"));
+    QApplication::setApplicationDisplayName(QStringLiteral("ArchiveManager"));
+    QApplication::setApplicationVersion(QStringLiteral("1.1.0"));
     QApplication::setOrganizationName(QStringLiteral("AzenDev"));
-    QApplication::setDesktopFileName(QStringLiteral("org.azendev.DolphinShell"));
+    QApplication::setDesktopFileName(QStringLiteral("org.azendev.ArchiveManager"));
     QApplication::setStyle(QStringLiteral("Fusion"));
 
     QCommandLineParser parser;
-    parser.setApplicationDescription(QStringLiteral("A Windows 11 Explorer style shell for Dolphin."));
+    parser.setApplicationDescription(QStringLiteral("A Windows 11 Explorer style file manager built on the Dolphin engine."));
     parser.addHelpOption();
     parser.addVersionOption();
 

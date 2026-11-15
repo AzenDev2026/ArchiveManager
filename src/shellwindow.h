@@ -16,7 +16,6 @@ class QTabBar;
 class QToolButton;
 class Breadcrumb;
 class Sidebar;
-class WindowControls;
 
 namespace KParts {
 class ReadOnlyPart;
@@ -33,8 +32,6 @@ public:
     void dumpActionsAndQuit();
 
 protected:
-    bool eventFilter(QObject *watched, QEvent *event) override;
-    void changeEvent(QEvent *event) override;
     void closeEvent(QCloseEvent *event) override;
 
 private:
@@ -90,7 +87,6 @@ private:
     QWidget *m_statusBar = nullptr;
     QTabBar *m_tabs = nullptr;
     QToolButton *m_addTabButton = nullptr;
-    WindowControls *m_controls = nullptr;
 
     QAction *m_backAction = nullptr;
     QAction *m_forwardAction = nullptr;

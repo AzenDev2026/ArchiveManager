@@ -1,8 +1,8 @@
 [Desktop Entry]
 Type=Application
-Name=Dolphin Shell
-Comment=A Windows 11 Explorer style shell for Dolphin
-Exec=dolphin-shell
+Name=ArchiveManager
+Comment=A Windows 11 Explorer style file manager built on the Dolphin engine
+Exec=archive-manager
 Icon=system-file-manager
 Categories=Qt;KDE;System;FileManager;
 Terminal=false
