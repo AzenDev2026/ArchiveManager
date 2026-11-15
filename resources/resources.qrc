@@ -1,0 +1,5 @@
+<RCC>
+    <qresource prefix="/icons">
+        <file alias="dolphin-shell.svg">dolphin-shell.svg</file>
+    </qresource>
+</RCC>

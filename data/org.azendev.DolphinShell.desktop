@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Dolphin Shell
+Comment=A Windows 11 Explorer style shell for Dolphin
+Exec=dolphin-shell
+Icon=dolphin-shell
+Categories=Qt;KDE;System;FileManager;
+Terminal=false
+StartupNotify=true
