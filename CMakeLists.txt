@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(ArchiveManager VERSION 1.1.0 LANGUAGES CXX)
+project(ArchiveManager VERSION 1.2.0 LANGUAGES CXX)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -11,6 +11,7 @@ find_package(KF6CoreAddons REQUIRED)
 find_package(KF6Parts REQUIRED)
 find_package(KF6XmlGui REQUIRED)
 find_package(KF6KIO REQUIRED)
+find_package(KF6TextEditor REQUIRED)
 
 add_executable(archive-manager
     src/main.cpp
@@ -18,6 +19,8 @@ add_executable(archive-manager
     src/breadcrumb.cpp
     src/sidebar.cpp
     src/shellwindow.cpp
+    src/editorpage.cpp
+    src/terminalpanel.cpp
 )
 
 target_link_libraries(archive-manager PRIVATE
@@ -26,6 +29,7 @@ target_link_libraries(archive-manager PRIVATE
     KF6::Parts
     KF6::XmlGui
     KF6::KIOCore
+    KF6::TextEditor
 )
 
 install(TARGETS archive-manager RUNTIME DESTINATION bin)

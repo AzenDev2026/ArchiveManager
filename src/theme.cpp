@@ -121,6 +121,14 @@ QToolButton#crumb:hover { background: %17; }
 QSplitter::handle { background: transparent; }
 QToolButton#sidebarToggle, QToolButton#statusBtn { border-radius: 6px; padding: 3px; color: %15; }
 QToolButton#sidebarToggle:hover, QToolButton#statusBtn:hover { background: %3; }
+QToolButton#toolCmd { border-radius: 6px; padding: 5px 10px; font-size: 12px; color: %10; }
+QToolButton#toolCmd:hover { background: %12; }
+QToolButton#toolCmd:checked { background: %12; }
+QWidget#editorBar { background: %7; border-bottom: 1px solid %8; }
+QLabel#editorPath { color: %15; padding: 0 8px; }
+QWidget#terminalPanel { background: %7; }
+QWidget#terminalHeader { background: %6; }
+QLabel#terminalTitle { color: %2; font-weight: 600; }
 )")
         .arg(win)
         .arg(text)

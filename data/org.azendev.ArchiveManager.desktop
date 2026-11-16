@@ -1,7 +1,7 @@
 [Desktop Entry]
 Type=Application
 Name=ArchiveManager
-Comment=A Windows 11 Explorer style file manager built on the Dolphin engine
+Comment=A Windows 11 style file manager with a built-in code editor and terminal
 Exec=archive-manager
 Icon=system-file-manager
 Categories=Qt;KDE;System;FileManager;

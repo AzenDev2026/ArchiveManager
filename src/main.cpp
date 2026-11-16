@@ -19,13 +19,13 @@ int main(int argc, char **argv)
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("ArchiveManager"));
     QApplication::setApplicationDisplayName(QStringLiteral("ArchiveManager"));
-    QApplication::setApplicationVersion(QStringLiteral("1.1.0"));
+    QApplication::setApplicationVersion(QStringLiteral("1.2.0"));
     QApplication::setOrganizationName(QStringLiteral("AzenDev"));
     QApplication::setDesktopFileName(QStringLiteral("org.azendev.ArchiveManager"));
     QApplication::setStyle(QStringLiteral("Fusion"));
 
     QCommandLineParser parser;
-    parser.setApplicationDescription(QStringLiteral("A Windows 11 Explorer style file manager built on the Dolphin engine."));
+    parser.setApplicationDescription(QStringLiteral("A Windows 11 Explorer style file manager with a built-in code editor and terminal."));
     parser.addHelpOption();
     parser.addVersionOption();
 
@@ -40,10 +40,17 @@ int main(int argc, char **argv)
     QCommandLineOption themeOpt(QStringLiteral("theme"),
                                 QStringLiteral("Start with a specific theme (dark or light)."),
                                 QStringLiteral("theme"));
+    QCommandLineOption editOpt(QStringLiteral("edit"),
+                               QStringLiteral("Open this file in the built-in editor at startup."),
+                               QStringLiteral("file"));
+    QCommandLineOption terminalOpt(QStringLiteral("terminal"),
+                                   QStringLiteral("Show the built-in terminal panel at startup."));
     parser.addOption(screenshotOpt);
     parser.addOption(dumpOpt);
     parser.addOption(urlOpt);
     parser.addOption(themeOpt);
+    parser.addOption(editOpt);
+    parser.addOption(terminalOpt);
     parser.process(app);
 
     ShellWindow window(nullptr, parser.isSet(themeOpt) ? parser.value(themeOpt) : QString());
@@ -51,6 +58,12 @@ int main(int argc, char **argv)
 
     if (parser.isSet(urlOpt)) {
         window.openInitialUrl(QUrl::fromUserInput(parser.value(urlOpt), QDir::homePath()));
+    }
+    if (parser.isSet(editOpt)) {
+        window.openFileInEditor(parser.value(editOpt));
+    }
+    if (parser.isSet(terminalOpt)) {
+        window.showTerminal();
     }
     if (parser.isSet(screenshotOpt)) {
         const QString file = parser.value(screenshotOpt);

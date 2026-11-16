@@ -15,7 +15,9 @@ class QStackedWidget;
 class QTabBar;
 class QToolButton;
 class Breadcrumb;
+class EditorPage;
 class Sidebar;
+class TerminalPanel;
 
 namespace KParts {
 class ReadOnlyPart;
@@ -29,6 +31,8 @@ public:
     ~ShellWindow() override;
 
     void openInitialUrl(const QUrl &url);
+    void openFileInEditor(const QString &filePath);
+    void showTerminal();
     void dumpActionsAndQuit();
 
 protected:
@@ -36,8 +40,11 @@ protected:
 
 private:
     struct Tab {
+        enum class Kind { File, Editor };
+        Kind kind = Kind::File;
         KParts::ReadOnlyPart *part = nullptr;
         QWidget *host = nullptr;
+        EditorPage *editor = nullptr;
         QList<QUrl> history;
         int historyPos = -1;
         bool skipRecord = false;
@@ -51,8 +58,11 @@ private:
     KParts::ReadOnlyPart *currentPart() const;
 
     int addTab(const QUrl &initialUrl);
+    int addEditorTab(const QString &filePath = QString());
     void closeTab(int index);
     void switchToTab(int index);
+    void applyCommandBarForTab(Tab *tab);
+    void updateEditorTabText(Tab *tab);
     void connectPartSignals(Tab *tab);
     void rebindToCurrentPart();
 
@@ -80,6 +90,10 @@ private:
     void openInDolphin();
     void showAbout();
     void openItemUrl(const QUrl &url);
+    void openInEditor(const QUrl &url);
+    void runInTerminal(const QString &command, const QString &workDir);
+    void setTerminalVisible(bool visible);
+    void cdTerminalHere();
 
     QWidget *m_root = nullptr;
     QWidget *m_titleBar = nullptr;
@@ -109,15 +123,20 @@ private:
     QToolButton *m_sortButton = nullptr;
     QToolButton *m_viewButton = nullptr;
     QToolButton *m_moreButton = nullptr;
+    QToolButton *m_editorButton = nullptr;
+    QToolButton *m_terminalButton = nullptr;
 
     Breadcrumb *m_breadcrumb = nullptr;
     QLineEdit *m_searchEdit = nullptr;
     QSplitter *m_splitter = nullptr;
+    QSplitter *m_verticalSplitter = nullptr;
     Sidebar *m_sidebar = nullptr;
     QStackedWidget *m_stack = nullptr;
     QLabel *m_statusLabel = nullptr;
     QToolButton *m_themeButton = nullptr;
+    TerminalPanel *m_terminal = nullptr;
 
+    QList<QWidget *> m_fileCommandWidgets;
     QList<Tab *> m_tabsData;
     Theme::Mode m_mode = Theme::Mode::Dark;
 };

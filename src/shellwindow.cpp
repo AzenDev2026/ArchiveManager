@@ -1,7 +1,9 @@
 #include "shellwindow.h"
 
 #include "breadcrumb.h"
+#include "editorpage.h"
 #include "sidebar.h"
+#include "terminalpanel.h"
 
 #include <kactioncollection.h>
 #include <kfileitem.h>
@@ -202,6 +204,26 @@ ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
     m_viewButton = makeCommandButton();
     m_moreButton = makeCommandButton();
 
+    // ---- Editor and terminal buttons (always visible) ----
+    m_editorButton = makeCommandButton();
+    m_editorButton->setObjectName(QStringLiteral("toolCmd"));
+    m_editorButton->setText(QStringLiteral("Editor"));
+    m_editorButton->setIcon(Theme::icon(QStringLiteral("accessories-text-editor"), QStringLiteral("document-edit")));
+    m_editorButton->setToolTip(QStringLiteral("Open the editor in a new tab (Ctrl+E)"));
+    connect(m_editorButton, &QToolButton::clicked, this, [this] { addEditorTab(); });
+
+    m_terminalButton = makeCommandButton();
+    m_terminalButton->setObjectName(QStringLiteral("toolCmd"));
+    m_terminalButton->setText(QStringLiteral("Terminal"));
+    m_terminalButton->setIcon(Theme::icon(QStringLiteral("utilities-terminal")));
+    m_terminalButton->setToolTip(QStringLiteral("Show or hide the terminal panel (Ctrl+`)"));
+    m_terminalButton->setCheckable(true);
+    connect(m_terminalButton, &QToolButton::clicked, this, [this](bool checked) { setTerminalVisible(checked); });
+
+    m_fileCommandWidgets = {m_backButton, m_forwardButton, m_upButton, m_breadcrumb, m_searchEdit,
+                            m_newButton, m_cutButton, m_copyButton, m_pasteButton, m_renameButton,
+                            m_deleteButton, m_sortButton, m_viewButton, m_moreButton};
+
     rootLayout->addWidget(m_commandBar);
 
     // ---- Splitter (sidebar + tabs) ----
@@ -220,7 +242,24 @@ ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
     m_splitter->setStretchFactor(0, 0);
     m_splitter->setStretchFactor(1, 1);
     m_splitter->setSizes({232, 1000});
-    rootLayout->addWidget(m_splitter, 1);
+
+    // ---- Bottom terminal panel (Konsole KPart) ----
+    m_terminal = new TerminalPanel(m_root);
+    m_terminal->setMinimumHeight(120);
+    m_terminal->setVisible(false);
+    connect(m_terminal, &TerminalPanel::hideRequested, this, [this] { setTerminalVisible(false); });
+    connect(m_terminal, &TerminalPanel::cdRequested, this, &ShellWindow::cdTerminalHere);
+
+    // ---- Vertical splitter: main area above, terminal panel below ----
+    m_verticalSplitter = new QSplitter(Qt::Vertical, m_root);
+    m_verticalSplitter->setChildrenCollapsible(false);
+    m_verticalSplitter->setHandleWidth(1);
+    m_verticalSplitter->addWidget(m_splitter);
+    m_verticalSplitter->addWidget(m_terminal);
+    m_verticalSplitter->setStretchFactor(0, 1);
+    m_verticalSplitter->setStretchFactor(1, 0);
+    m_verticalSplitter->setSizes({1000, 200});
+    rootLayout->addWidget(m_verticalSplitter, 1);
 
     // ---- Status bar ----
     m_statusBar = new QWidget(m_root);
@@ -287,6 +326,10 @@ ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
         m_searchEdit->setFocus();
         m_searchEdit->selectAll();
     });
+    auto *editorShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+E")), this);
+    connect(editorShortcut, &QShortcut::activated, this, [this] { addEditorTab(); });
+    auto *terminalShortcut = new QShortcut(QKeySequence(QStringLiteral("Ctrl+`")), this);
+    connect(terminalShortcut, &QShortcut::activated, this, [this] { setTerminalVisible(!m_terminal->isVisible()); });
 
     // ---- Settings ----
     QSettings settings;
@@ -403,6 +446,23 @@ void ShellWindow::closeTab(int index)
         close();
         return;
     }
+
+    // Ask before closing an editor tab with unsaved changes.
+    if (tab->kind == Tab::Kind::Editor && tab->editor && tab->editor->isModified()) {
+        const auto answer = QMessageBox::warning(
+            this, QStringLiteral("Save changes"),
+            QStringLiteral("Save changes to “%1” before closing?").arg(tab->editor->title()),
+            QMessageBox::Save | QMessageBox::Discard | QMessageBox::Cancel, QMessageBox::Save);
+        if (answer == QMessageBox::Cancel) {
+            return;
+        }
+        if (answer == QMessageBox::Save) {
+            if (!tab->editor->save()) {
+                return;
+            }
+        }
+    }
+
     if (m_tabs->currentIndex() == index) {
         m_tabs->setCurrentIndex(index == 0 ? 1 : index - 1);
     }
@@ -417,6 +477,65 @@ void ShellWindow::closeTab(int index)
     updateNavButtons();
 }
 
+int ShellWindow::addEditorTab(const QString &filePath)
+{
+    auto *tab = new Tab;
+    tab->kind = Tab::Kind::Editor;
+    tab->host = new QWidget(m_stack);
+    tab->host->setObjectName(QStringLiteral("hostPage"));
+    auto *hostLayout = new QVBoxLayout(tab->host);
+    hostLayout->setContentsMargins(0, 0, 0, 0);
+    hostLayout->setSpacing(0);
+
+    tab->editor = new EditorPage(filePath, tab->host);
+    hostLayout->addWidget(tab->editor);
+
+    connect(tab->editor, &EditorPage::modifiedChanged, this, [this, tab](bool) {
+        updateEditorTabText(tab);
+    });
+    connect(tab->editor, &EditorPage::pathChanged, this, [this, tab](const QString &) {
+        updateEditorTabText(tab);
+    });
+    connect(tab->editor, &EditorPage::requestRun, this,
+            [this](const QString &command, const QString &workDir) { runInTerminal(command, workDir); });
+
+    const int index = m_tabs->addTab(QStringLiteral("Editor"));
+    m_tabs->setTabIcon(index, Theme::icon(QStringLiteral("accessories-text-editor"), QStringLiteral("document-edit")));
+    m_tabs->setTabData(index, QVariant::fromValue(static_cast<qulonglong>(reinterpret_cast<quintptr>(tab))));
+    m_tabsData.append(tab);
+    m_stack->addWidget(tab->host);
+
+    updateEditorTabText(tab);
+    m_tabs->setCurrentIndex(index);
+    switchToTab(index);
+    return index;
+}
+
+void ShellWindow::updateEditorTabText(Tab *tab)
+{
+    if (!tab || tab->kind != Tab::Kind::Editor || !tab->editor) {
+        return;
+    }
+    const int index = m_tabsData.indexOf(tab);
+    if (index < 0) {
+        return;
+    }
+    const QString title = tab->editor->title() + (tab->editor->isModified() ? QStringLiteral(" ●") : QString());
+    m_tabs->setTabText(index, title);
+}
+
+void ShellWindow::applyCommandBarForTab(Tab *tab)
+{
+    const bool fileMode = !tab || tab->kind == Tab::Kind::File;
+    for (QWidget *widget : m_fileCommandWidgets) {
+        widget->setVisible(fileMode);
+    }
+    m_editorButton->setChecked(!fileMode);
+    if (!fileMode && tab && tab->editor && !tab->editor->filePath().isEmpty()) {
+        m_statusLabel->setText(tab->editor->filePath());
+    }
+}
+
 void ShellWindow::switchToTab(int index)
 {
     Tab *tab = tabAt(index);
@@ -424,6 +543,7 @@ void ShellWindow::switchToTab(int index)
         return;
     }
     m_stack->setCurrentWidget(tab->host);
+    applyCommandBarForTab(tab);
     syncUrl(tab);
     rebindToCurrentPart();
 }
@@ -559,6 +679,10 @@ void ShellWindow::connectPartSignals(ShellWindow::Tab *tab)
                         QAction *openAction = menu.addAction(
                             Theme::icon(QStringLiteral("document-open")), QStringLiteral("Open"));
                         connect(openAction, &QAction::triggered, this, [this, url = item.url()] { openItemUrl(url); });
+                        QAction *editAction = menu.addAction(
+                            Theme::icon(QStringLiteral("accessories-text-editor"), QStringLiteral("document-edit")),
+                            QStringLiteral("Open with Editor"));
+                        connect(editAction, &QAction::triggered, this, [this, url = item.url()] { openInEditor(url); });
                     }
                     menu.addSeparator();
                 }
@@ -1009,8 +1133,9 @@ void ShellWindow::openInDolphin()
 void ShellWindow::showAbout()
 {
     QMessageBox::about(this, QStringLiteral("About ArchiveManager"),
-                       QStringLiteral("<h3>ArchiveManager 1.1.0</h3>"
-                                      "<p>A Windows 11 Explorer style file manager built on the Dolphin engine.</p>"
+                       QStringLiteral("<h3>ArchiveManager 1.2.0</h3>"
+                                      "<p>A Windows 11 Explorer style file manager built on the Dolphin engine, "
+                                      "with a built-in code editor and terminal.</p>"
                                       "<p>Made by AzenDev.</p>"));
 }
 
@@ -1019,12 +1144,79 @@ void ShellWindow::openItemUrl(const QUrl &url)
     QDesktopServices::openUrl(url);
 }
 
+void ShellWindow::openInEditor(const QUrl &url)
+{
+    if (!url.isLocalFile()) {
+        m_statusLabel->setText(QStringLiteral("Only local files can be edited."));
+        return;
+    }
+    if (!QFileInfo::exists(url.toLocalFile())) {
+        m_statusLabel->setText(QStringLiteral("The file does not exist."));
+        return;
+    }
+    addEditorTab(url.toLocalFile());
+}
+
+void ShellWindow::runInTerminal(const QString &command, const QString &workDir)
+{
+    setTerminalVisible(true);
+    m_terminal->cdTo(workDir);
+    m_terminal->runCommand(command);
+    m_statusLabel->setText(QStringLiteral("Running in terminal: %1").arg(command));
+}
+
+void ShellWindow::setTerminalVisible(bool visible)
+{
+    m_terminal->setVisible(visible);
+    m_terminalButton->setChecked(visible);
+    if (visible) {
+        QList<int> sizes = m_verticalSplitter->sizes();
+        if (sizes.size() == 2 && sizes.last() < 120) {
+            sizes[0] -= 200;
+            sizes[1] = 200;
+            m_verticalSplitter->setSizes(sizes);
+        }
+    }
+}
+
+void ShellWindow::cdTerminalHere()
+{
+    Tab *tab = currentTab();
+    if (!tab) {
+        return;
+    }
+    if (tab->kind == Tab::Kind::File && tab->part) {
+        const QUrl url = tab->part->url();
+        if (url.isLocalFile()) {
+            setTerminalVisible(true);
+            m_terminal->cdTo(url.toLocalFile());
+            return;
+        }
+    }
+    if (tab->kind == Tab::Kind::Editor && tab->editor && !tab->editor->filePath().isEmpty()) {
+        setTerminalVisible(true);
+        m_terminal->cdTo(QFileInfo(tab->editor->filePath()).absolutePath());
+    }
+}
+
 void ShellWindow::openInitialUrl(const QUrl &url)
 {
     if (!url.isEmpty() && currentPart()) {
         currentPart()->openUrl(url);
         syncUrl(currentTab());
     }
+}
+
+void ShellWindow::openFileInEditor(const QString &filePath)
+{
+    if (!filePath.isEmpty()) {
+        addEditorTab(filePath);
+    }
+}
+
+void ShellWindow::showTerminal()
+{
+    setTerminalVisible(true);
 }
 
 void ShellWindow::dumpActionsAndQuit()
