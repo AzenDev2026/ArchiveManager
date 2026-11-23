@@ -1,6 +1,8 @@
 #include "breadcrumb.h"
 
+#include <QCompleter>
 #include <QEvent>
+#include <QFileSystemModel>
 #include <QHBoxLayout>
 #include <QLabel>
 #include <QLineEdit>
@@ -9,6 +11,11 @@
 #include <QToolButton>
 
 #include "theme.h"
+
+namespace {
+//: Below this width the breadcrumb collapses to root › … › last crumbs.
+constexpr int COMPACT_WIDTH = 430;
+}
 
 Breadcrumb::Breadcrumb(QWidget *parent)
     : QWidget(parent)
@@ -20,9 +27,19 @@ Breadcrumb::Breadcrumb(QWidget *parent)
 
     m_edit = new QLineEdit(this);
     m_edit->setObjectName(QStringLiteral("address"));
+    m_edit->setPlaceholderText(QStringLiteral("Type a path… e.g. /home/you/Documents"));
+    m_edit->setClearButtonEnabled(true);
     m_edit->hide();
     m_edit->installEventFilter(this);
     connect(m_edit, &QLineEdit::returnPressed, this, [this] { leaveEditMode(true); });
+
+    // Folder autocomplete while typing an address.
+    auto *fsModel = new QFileSystemModel(this);
+    fsModel->setRootPath(QStringLiteral("/"));
+    fsModel->setFilter(QDir::AllDirs | QDir::Dirs | QDir::NoDotAndDotDot);
+    auto *completer = new QCompleter(fsModel, this);
+    completer->setCompletionMode(QCompleter::PopupCompletion);
+    m_edit->setCompleter(completer);
 
     auto *escapeShortcut = new QShortcut(QKeySequence(Qt::Key_Escape), m_edit);
     escapeShortcut->setContext(Qt::WidgetShortcut);
@@ -44,15 +61,43 @@ void Breadcrumb::rebuild()
         delete item;
     }
 
-    auto addCrumb = [this](const QString &text, const QIcon &icon, const QUrl &url) {
+    struct Crumb {
+        QString text;
+        QIcon icon;
+        QUrl url;
+    };
+    QList<Crumb> crumbs;
+    if (m_url.isLocalFile()) {
+        const QString path = m_url.toLocalFile();
+        crumbs.append({QStringLiteral("/"),
+                       Theme::icon(QStringLiteral("computer"), QStringLiteral("drive-harddisk")),
+                       QUrl::fromLocalFile(QStringLiteral("/"))});
+        QString cumulative;
+        const QStringList parts = path.split(QLatin1Char('/'), Qt::SkipEmptyParts);
+        for (const QString &part : parts) {
+            cumulative += QLatin1Char('/') + part;
+            crumbs.append({part, QIcon(), QUrl::fromLocalFile(cumulative)});
+        }
+    } else if (!m_url.isEmpty()) {
+        QString title = m_url.toDisplayString(QUrl::PreferLocalFile);
+        if (!m_url.scheme().isEmpty()) {
+            QString scheme = m_url.scheme();
+            scheme[0] = scheme.at(0).toUpper();
+            title = scheme;
+        }
+        crumbs.append({title, Theme::icon(QStringLiteral("folder-remote")), m_url});
+    }
+
+    auto addCrumb = [this](const Crumb &crumb) {
         auto *button = new QToolButton(this);
         button->setObjectName(QStringLiteral("crumb"));
-        button->setText(text);
-        if (!icon.isNull()) {
-            button->setIcon(icon);
+        button->setText(crumb.text);
+        if (!crumb.icon.isNull()) {
+            button->setIcon(crumb.icon);
             button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
         }
-        connect(button, &QToolButton::clicked, this, [this, url] { emit navigateRequested(url); });
+        button->setToolTip(crumb.url.toDisplayString(QUrl::PreferLocalFile));
+        connect(button, &QToolButton::clicked, this, [this, url = crumb.url] { emit navigateRequested(url); });
         m_layout->addWidget(button);
     };
     auto addSeparator = [this] {
@@ -64,27 +109,34 @@ void Breadcrumb::rebuild()
         sep->setFont(f);
         m_layout->addWidget(sep);
     };
+    auto addEllipsis = [this] {
+        auto *sep = new QLabel(QStringLiteral("…"), this);
+        sep->setObjectName(QStringLiteral("crumbSep"));
+        QFont f = sep->font();
+        f.setBold(true);
+        f.setPixelSize(14);
+        sep->setFont(f);
+        sep->setToolTip(QStringLiteral("Resize the window to see every folder"));
+        m_layout->addWidget(sep);
+    };
 
-    if (m_url.isLocalFile()) {
-        const QString path = m_url.toLocalFile();
-        addCrumb(QStringLiteral("/"),
-                 Theme::icon(QStringLiteral("computer"), QStringLiteral("drive-harddisk")),
-                 QUrl::fromLocalFile(QStringLiteral("/")));
-        QString cumulative;
-        const QStringList parts = path.split(QLatin1Char('/'), Qt::SkipEmptyParts);
-        for (const QString &part : parts) {
-            cumulative += QLatin1Char('/') + part;
-            addSeparator();
-            addCrumb(part, QIcon(), QUrl::fromLocalFile(cumulative));
+    // Narrow windows collapse long paths to root › … › last two folders,
+    // so the crumbs never crowd or clip the other controls.
+    if (m_compact && crumbs.size() > 3) {
+        addCrumb(crumbs.first());
+        addSeparator();
+        addEllipsis();
+        addSeparator();
+        for (int i = crumbs.size() - 2; i < crumbs.size(); ++i) {
+            addCrumb(crumbs.at(i));
         }
-    } else if (!m_url.isEmpty()) {
-        QString title = m_url.toDisplayString(QUrl::PreferLocalFile);
-        if (!m_url.scheme().isEmpty()) {
-            QString scheme = m_url.scheme();
-            scheme[0] = scheme.at(0).toUpper();
-            title = scheme;
+    } else {
+        for (int i = 0; i < crumbs.size(); ++i) {
+            if (i > 0) {
+                addSeparator();
+            }
+            addCrumb(crumbs.at(i));
         }
-        addCrumb(title, Theme::icon(QStringLiteral("folder-remote")), m_url);
     }
 
     m_layout->addStretch(1);
@@ -128,6 +180,11 @@ void Breadcrumb::resizeEvent(QResizeEvent *event)
 {
     QWidget::resizeEvent(event);
     m_edit->setGeometry(rect());
+    const bool compact = event->size().width() < COMPACT_WIDTH;
+    if (compact != m_compact) {
+        m_compact = compact;
+        rebuild();
+    }
 }
 
 bool Breadcrumb::eventFilter(QObject *watched, QEvent *event)

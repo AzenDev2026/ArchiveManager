@@ -24,6 +24,7 @@
 #include <QMenu>
 #include <QMessageBox>
 #include <QProcess>
+#include <QResizeEvent>
 #include <QSet>
 #include <QSettings>
 #include <QShortcut>
@@ -40,7 +41,7 @@ ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
 {
     setWindowTitle(QStringLiteral("ArchiveManager"));
     setWindowIcon(Theme::icon(QStringLiteral("system-file-manager"), QStringLiteral("folder")));
-    setMinimumSize(900, 560);
+    setMinimumSize(760, 520);
     resize(1240, 760);
 
     if (forcedTheme == QLatin1String("light")) {
@@ -141,10 +142,18 @@ ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
     commandLayout->addWidget(m_upButton);
 
     m_breadcrumb = new Breadcrumb(m_commandBar);
+    m_breadcrumb->setMinimumWidth(120);
     commandLayout->addWidget(m_breadcrumb, 1);
     connect(m_breadcrumb, &Breadcrumb::navigateRequested, this, &ShellWindow::navigate);
     connect(m_breadcrumb, &Breadcrumb::textSubmitted, this, [this](const QString &text) {
-        navigate(QUrl::fromUserInput(text, QDir::homePath()));
+        const QUrl url = QUrl::fromUserInput(text, QDir::homePath());
+        if (url.isLocalFile() && !QFileInfo(url.toLocalFile()).exists()) {
+            QMessageBox::information(
+                this, QStringLiteral("Folder not found"),
+                QStringLiteral("“%1” does not exist.").arg(url.toLocalFile()));
+            return;
+        }
+        navigate(url);
     });
 
     m_cutAction = new QAction(Theme::icon(QStringLiteral("edit-cut")), QStringLiteral("Cut"), this);
@@ -176,7 +185,10 @@ ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
     m_searchEdit->setObjectName(QStringLiteral("search"));
     m_searchEdit->setPlaceholderText(QStringLiteral("Search in this folder"));
     m_searchEdit->setClearButtonEnabled(true);
-    m_searchEdit->setFixedWidth(220);
+    // Flexible width: takes up to 240px when the window is wide, shrinks
+    // gracefully in narrow windows instead of crowding the other controls.
+    m_searchEdit->setMinimumWidth(100);
+    m_searchEdit->setMaximumWidth(240);
     const QIcon searchIcon = Theme::icon(QStringLiteral("edit-find"), QStringLiteral("system-search"));
     if (!searchIcon.isNull()) {
         m_searchEdit->addAction(searchIcon, QLineEdit::LeadingPosition);
@@ -223,6 +235,11 @@ ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
     m_fileCommandWidgets = {m_backButton, m_forwardButton, m_upButton, m_breadcrumb, m_searchEdit,
                             m_newButton, m_cutButton, m_copyButton, m_pasteButton, m_renameButton,
                             m_deleteButton, m_sortButton, m_viewButton, m_moreButton};
+
+    // Buttons that carry a text label in wide windows and collapse to
+    // icon-only in narrow ones, so the command bar never crowds.
+    m_textCommandButtons = {m_newButton, m_cutButton, m_copyButton, m_pasteButton, m_renameButton,
+                            m_deleteButton, m_sortButton, m_viewButton, m_editorButton, m_terminalButton};
 
     rootLayout->addWidget(m_commandBar);
 
@@ -342,6 +359,7 @@ ShellWindow::ShellWindow(QWidget *parent, const QString &forcedTheme)
     addTab(QUrl());
     rebindToCurrentPart();
     applyTheme(m_mode);
+    updateCommandBarCompact();
 }
 
 ShellWindow::~ShellWindow() = default;
@@ -783,6 +801,7 @@ void ShellWindow::rebindToCurrentPart()
     rebuildViewMenu();
     rebuildMoreMenu();
     updateNavButtons();
+    updateCommandBarCompact();
 }
 
 void ShellWindow::navigate(const QUrl &url)
@@ -1038,6 +1057,54 @@ void ShellWindow::rebuildViewMenu()
     m_viewButton->setPopupMode(QToolButton::InstantPopup);
 }
 
+void ShellWindow::updateCommandBarCompact()
+{
+    // Measure how wide the command bar would be with every text label shown.
+    // If the window cannot fit that, collapse the labels to icons and let
+    // the search field shrink, so nothing crowds in narrow windows.
+    int needed = 0;
+    for (QToolButton *button : m_textCommandButtons) {
+        const Qt::ToolButtonStyle old = button->toolButtonStyle();
+        button->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+        if (!button->isHidden()) {
+            needed += button->sizeHint().width();
+        }
+        button->setToolButtonStyle(old);
+    }
+    for (QWidget *widget : m_fileCommandWidgets) {
+        if (widget->isHidden()) {
+            continue;
+        }
+        QToolButton *button = qobject_cast<QToolButton *>(widget);
+        if (button && m_textCommandButtons.contains(button)) {
+            continue; // already measured above with its text label
+        }
+        if (widget == m_breadcrumb) {
+            needed += 120;
+        } else if (widget == m_searchEdit) {
+            needed += 240;
+        } else {
+            needed += widget->sizeHint().width();
+        }
+    }
+    needed += 2 * (m_fileCommandWidgets.size() + 2) + 4 + 18; // spacings + margins
+
+    const bool compact = width() < needed;
+    m_compact = compact;
+    const Qt::ToolButtonStyle style = compact ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon;
+    for (QToolButton *button : m_textCommandButtons) {
+        button->setToolButtonStyle(style);
+    }
+    m_searchEdit->setMaximumWidth(compact ? 170 : 240);
+    m_searchEdit->setMinimumWidth(compact ? 80 : 110);
+}
+
+void ShellWindow::resizeEvent(QResizeEvent *event)
+{
+    QMainWindow::resizeEvent(event);
+    updateCommandBarCompact();
+}
+
 void ShellWindow::rebuildMoreMenu()
 {
     if (QMenu *oldMenu = m_moreButton->menu()) {
@@ -1135,7 +1202,8 @@ void ShellWindow::showAbout()
     QMessageBox::about(this, QStringLiteral("About ArchiveManager"),
                        QStringLiteral("<h3>ArchiveManager 1.2.0</h3>"
                                       "<p>A Windows 11 Explorer style file manager built on the Dolphin engine, "
-                                      "with a built-in code editor and terminal.</p>"
+                                      "with a built-in code editor, terminal and an editable address bar "
+                                      "with folder autocomplete (click the breadcrumb or press Ctrl+L).</p>"
                                       "<p>Made by AzenDev.</p>"));
 }
 

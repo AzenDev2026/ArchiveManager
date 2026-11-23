@@ -6,12 +6,19 @@ dark/light themes (dark is the default). Folders open in the vertical list view.
 
 ## Built-in tools (1.2)
 
+- **Editable address bar** — click the breadcrumb (or press `Ctrl+L`) and type
+  any path, with **folder autocomplete** as you type. Enter navigates there;
+  a friendly message appears if the folder does not exist. In narrow windows
+  long paths collapse to `root › … › last folders` instead of crowding.
 - **Code editor** — open any file in an editor tab (KTextEditor): syntax
   highlighting, line numbers, Save, and a **Run** button that saves and runs
   the file in the built-in terminal (`.sh`, `.py`, `.js`, `.c`, `.cpp`).
 - **Terminal panel** — a Konsole terminal docked at the bottom of the window,
   always one keystroke away (`Ctrl+\``). "cd here" switches it to the folder
   open in the current tab.
+- **Responsive command bar** — in narrow windows the command buttons drop
+  their text labels to icons and the search field shrinks, so nothing ever
+  gets squeezed or clipped (Windows 11 style).
 
 ## Requirements (Arch / NVazen)
 

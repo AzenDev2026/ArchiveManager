@@ -10,6 +10,7 @@ class QAction;
 class QCloseEvent;
 class QLabel;
 class QLineEdit;
+class QResizeEvent;
 class QSplitter;
 class QStackedWidget;
 class QTabBar;
@@ -37,6 +38,7 @@ public:
 
 protected:
     void closeEvent(QCloseEvent *event) override;
+    void resizeEvent(QResizeEvent *event) override;
 
 private:
     struct Tab {
@@ -84,6 +86,7 @@ private:
     void rebuildSortMenu();
     void rebuildViewMenu();
     void rebuildMoreMenu();
+    void updateCommandBarCompact();
 
     void applyTheme(Theme::Mode mode);
     void toggleTheme();
@@ -137,6 +140,8 @@ private:
     TerminalPanel *m_terminal = nullptr;
 
     QList<QWidget *> m_fileCommandWidgets;
+    QList<QToolButton *> m_textCommandButtons;
     QList<Tab *> m_tabsData;
     Theme::Mode m_mode = Theme::Mode::Dark;
+    bool m_compact = false;
 };

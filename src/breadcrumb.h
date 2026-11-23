@@ -34,4 +34,5 @@ private:
     QUrl m_url;
     QHBoxLayout *m_layout = nullptr;
     QLineEdit *m_edit = nullptr;
+    bool m_compact = false;
 };
